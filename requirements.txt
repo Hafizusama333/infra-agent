@@ -1,0 +1,8 @@
+anthropic
+pypdf
+pyyaml
+streamlit
+fastapi
+uvicorn
+httpx
+pandas

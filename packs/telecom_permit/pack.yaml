@@ -1,0 +1,129 @@
+id: telecom_permit
+name: "Telecom – new mobile site permit check (Germany)"
+vertical: Telecom infrastructure
+description: >
+  An operator plans a new mobile radio site. The pack checks which federal requirements apply
+  (BNetzA site certificate, application documents, municipal consultation, field limits), whether the
+  application package is complete, and drafts a permit-readiness memo. Every requirement is cited
+  to the official German text, and the citation is verified against it.
+sources:
+  - laws_telecom.json
+
+input_form:
+  - {name: site_name, label: "Site name", type: text, default: "BER-Neukölln-0417 (demo)"}
+  - {name: address, label: "Address", type: text, default: "Karl-Marx-Straße 100, 12043 Berlin (demo)"}
+  - {name: lat, label: "Latitude", type: number, default: 52.4812}
+  - {name: lon, label: "Longitude", type: number, default: 13.4351}
+  - {name: mount, label: "Mounting", type: select, options: [rooftop, freestanding mast], default: rooftop}
+  - {name: antenna_height_m, label: "Antenna height above ground (m)", type: number, default: 24}
+  - {name: new_eirp_w, label: "EIRP of the new installation (W)", type: number, default: 2500}
+  - {name: existing_eirp_w, label: "EIRP already installed at this site (W)", type: number, default: 800}
+  - {name: frequency_mhz, label: "Lowest frequency used (MHz)", type: number, default: 700}
+  - {name: municipality_consulted, label: "Municipality consulted on site selection", type: bool, default: false}
+  - {name: site_plan, label: "Site plan (Lageplan) ready", type: bool, default: true}
+  - {name: building_drawing, label: "Building drawing with dimensions ready", type: bool, default: false}
+  - {name: antenna_diagrams, label: "Antenna diagrams ready", type: bool, default: true}
+
+rules:
+  - id: T1
+    severity: high
+    title: BNetzA site certificate required
+    when: "new_eirp_w >= 10"
+    message: "New installation has {new_eirp_w} W EIRP (≥ 10 W). It may only operate with a valid site certificate (Standortbescheinigung) from the Bundesnetzagentur."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 1 BEMFV",
+           quote: "von 10 Watt oder mehr darf nur betrieben werden, wenn für diesen Standort eine gültige Standortbescheinigung vorliegt"}
+
+  - id: T2
+    severity: high
+    title: Certificate required because of total site power
+    when: "new_eirp_w < 10 and new_eirp_w > 0.1 and total_eirp_w >= 10"
+    message: "New installation is below 10 W, but total site EIRP is {total_eirp_w} W. A site certificate is still required."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 1 BEMFV",
+           quote: "wenn durch die hinzukommende Funkanlage die Gesamtstrahlungsleistung von 10 Watt (EIRP) erreicht oder überschritten wird"}
+
+  - id: T3
+    severity: info
+    title: Very low power exemption
+    when: "new_eirp_w <= 0.1"
+    message: "New installation has ≤ 100 mW EIRP and is exempt from the total-power rule."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 1 BEMFV",
+           quote: "Satz 2 gilt nicht für solche Funkanlagen, die eine äquivalente isotrope Strahlungsleistung (EIRP) von 100 Milliwatt oder weniger aufweisen"}
+
+  - id: T4
+    severity: info
+    title: Official application forms
+    when: "needs_certificate and frequency_mhz >= 30"
+    message: "Frequencies ≥ 30 MHz ({frequency_mhz} MHz): only the official BNetzA forms published in its Amtsblatt may be used."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 4 BEMFV",
+           quote: "sind ausschließlich die im Amtsblatt der Bundesnetzagentur"}
+
+  - id: T5
+    severity: blocker
+    title: Site plan missing
+    when: "needs_certificate and not site_plan"
+    message: "Site plan (Lageplan) showing neighbouring plots/buildings and their use is missing. The application does not count as filed until it is complete."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 5 BEMFV",
+           quote: "ein Lageplan (Kartenausschnitt, Ausschnitt aus dem Bebauungs- oder Flächennutzungsplan)"}
+
+  - id: T6
+    severity: blocker
+    title: Building drawing missing (rooftop)
+    when: "needs_certificate and mount == 'rooftop' and not building_drawing"
+    message: "Antenna is mounted on a building: a dimensioned drawing (side view and top view) showing the mounting position is required."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 5 BEMFV",
+           quote: "bei Montage der Sendeantenne auf einem Bauwerk eine Bauzeichnung oder Skizze des Bauwerks mit Bemaßung"}
+
+  - id: T7
+    severity: blocker
+    title: Antenna diagrams missing
+    when: "needs_certificate and not antenna_diagrams"
+    message: "Antenna diagrams for the antennas to be used are required."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 5 BEMFV",
+           quote: "Antennendiagramme bezüglich der zu verwendenden Antennen"}
+
+  - id: T8
+    severity: blocker
+    title: Coordinates missing
+    when: "needs_certificate and not coords_given"
+    message: "Installation coordinates must be submitted with the application."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 5 BEMFV",
+           quote: "auch die Installationsorte mit Angabe der geographischen Koordinaten mit"}
+
+  - id: T9
+    severity: blocker
+    title: Municipality not yet consulted
+    when: "not municipality_consulted"
+    message: "The municipality must be heard during site selection and given time to comment; its input must be taken into account."
+    cite: {source: laws_telecom.json, ref: "§ 7a 26. BImSchV",
+           quote: "bei der Auswahl von Standorten für Hochfrequenzanlagen, die nach dem 22. August 2013 errichtet werden, durch die Betreiber gehört"}
+
+  - id: T10
+    severity: medium
+    title: Existing installations may need re-assessment (fee)
+    when: "needs_certificate and existing_eirp_w > 0"
+    message: "{existing_eirp_w} W already installed at the site. If BNetzA must re-assess them, the applicant pays for that work – budget for it."
+    cite: {source: laws_telecom.json, ref: "§ 4 Abs. 6 BEMFV",
+           quote: "eine Neubewertung von bereits am Standort installierten Funkanlagen voraus, ist der Antragsteller für den dadurch entstehenden Aufwand gebührenpflichtig"}
+
+  - id: T11
+    severity: info
+    title: Field limits at places where people stay
+    when: "total_eirp_w >= 10"
+    message: "Limits of Annex 1a/1b must be met at all places intended for people to stay, at maximum load and including other installations. BNetzA sets the safety distance in the certificate; check it against the {antenna_height_m} m mounting height and nearby windows/terraces."
+    cite: {source: laws_telecom.json, ref: "§ 2 Abs. 1 26. BImSchV",
+           quote: "an Orten, die zum dauerhaften oder vorübergehenden Aufenthalt von Menschen bestimmt sind, bei höchster betrieblicher Anlagenauslastung"}
+
+  - id: T12
+    severity: medium
+    title: Building-law check (state law)
+    when: "new_eirp_w > 0"
+    message: "Check whether the mast/antenna needs a building permit under the state building code (Berlin: BauO Bln § 61, permit-free structures). This source is not in the knowledge base yet."
+    cite: {source: BauO_Bln.json, ref: "§ 61 BauO Bln", quote: "",
+           url: "https://gesetze.berlin.de/bsbe/document/jlr-BauOBE2005rahmen"}
+
+draft_prompt: |
+  You support a site acquisition / permitting engineer at a German mobile network operator.
+  Write a permit-readiness memo (Markdown, max 400 words) for ONE planned site, using ONLY the JSON.
+  Sections: 1. Site summary  2. Permits & notifications required  3. Application package – complete / missing
+  4. Next steps with owner (operator, BNetzA, municipality)  5. Items to check manually.
+  Write in English, keep German legal terms in brackets (e.g. Standortbescheinigung).

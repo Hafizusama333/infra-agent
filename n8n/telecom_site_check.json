@@ -1,0 +1,480 @@
+{
+  "name": "Infra Agent – telecom site permit check",
+  "nodes": [
+    {
+      "id": "e814fdf8-7068-41b0-b6f3-67fe3e23a8f6",
+      "name": "New site request",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "6d03b45b-1d3d-4597-89ee-3feadcb1de18",
+      "parameters": {
+        "formTitle": "New mobile site – permit check",
+        "formDescription": "Infra Agent checks the planned site against BEMFV § 4 and 26. BImSchV and drafts a permit-readiness memo. Every requirement is cited to the law.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Site name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Address",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Latitude",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Longitude",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Mounting",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "rooftop"
+                  },
+                  {
+                    "option": "freestanding mast"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Antenna height above ground (m)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "EIRP of the new installation (W)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "EIRP already installed at this site (W)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Lowest frequency used (MHz)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Municipality consulted on site selection?",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "no"
+                  },
+                  {
+                    "option": "yes"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Site plan (Lageplan) ready?",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "no"
+                  },
+                  {
+                    "option": "yes"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Building drawing with dimensions ready?",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "no"
+                  },
+                  {
+                    "option": "yes"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Antenna diagrams ready?",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "no"
+                  },
+                  {
+                    "option": "yes"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Check site"
+        }
+      }
+    },
+    {
+      "id": "94e942d9-f44e-4ede-ab46-1237c95ec9cd",
+      "name": "Map form to API inputs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// Form labels -> API field names (one place to change if the form changes)\nconst f = $input.first().json;\nconst yes = v => String(v).toLowerCase().startsWith('y');\nreturn [{ json: { inputs: {\n  site_name: f['Site name'],\n  address: f['Address'],\n  lat: f['Latitude'],\n  lon: f['Longitude'],\n  mount: f['Mounting'],\n  antenna_height_m: f['Antenna height above ground (m)'],\n  new_eirp_w: f['EIRP of the new installation (W)'],\n  existing_eirp_w: f['EIRP already installed at this site (W)'],\n  frequency_mhz: f['Lowest frequency used (MHz)'],\n  municipality_consulted: yes(f['Municipality consulted on site selection?']),\n  site_plan: yes(f['Site plan (Lageplan) ready?']),\n  building_drawing: yes(f['Building drawing with dimensions ready?']),\n  antenna_diagrams: yes(f['Antenna diagrams ready?']),\n} } }];"
+      }
+    },
+    {
+      "id": "a1c193d2-f81b-4cbf-b371-d9a3cd851d90",
+      "name": "Check site (rules + citations)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/packs/telecom_permit/assess",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inputs: $json.inputs }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b449d6b6-37e3-4122-a457-dfbece52aefa",
+      "name": "Blocked?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "555e096c-44fa-4451-b6b1-3b0559bd995c",
+              "leftValue": "={{ $json.blocked }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "fa16ea2d-de8d-46d7-906d-6eee12504e7e",
+      "name": "Show what is missing",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        880,
+        160
+      ],
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Not ready to file",
+        "completionMessage": "={{ 'The application is incomplete. Fix these items first:\\n\\n' + $json.summary }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e1e93c05-f330-448e-a02d-9e9e81e6c920",
+      "name": "Draft memo with Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/packs/telecom_permit/draft",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inputs: $('Map form to API inputs').item.json.inputs }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "9986359b-d914-47e5-abfb-4339ea1ea1f2",
+      "name": "Engineer approval",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        1100,
+        440
+      ],
+      "parameters": {
+        "operation": "page",
+        "defineForm": "fields",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Approved by",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Decision",
+              "fieldType": "dropdown",
+              "requiredField": true,
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve and file"
+                  },
+                  {
+                    "option": "Reject"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "formTitle": "Review the AI draft",
+          "formDescription": "={{ $json.document_md }}",
+          "buttonLabel": "Submit decision"
+        }
+      }
+    },
+    {
+      "id": "7246e7e3-1c7e-43a0-95fb-f47b6f5bffc8",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "af0b26e8-9a4f-4747-bbd5-55943618d108",
+              "leftValue": "={{ $json.Decision }}",
+              "rightValue": "Approve and file",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e96afcd0-5470-40b4-bf64-687ca9835ee5",
+      "name": "File to system of record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        360
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/packs/telecom_permit/approve",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ inputs: $('Map form to API inputs').item.json.inputs, document_md: $('Draft memo with Claude').item.json.document_md, approver: $json['Approved by'] }) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "1c261c3e-08ff-442a-9763-269632bba08e",
+      "name": "Filed",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        1760,
+        360
+      ],
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Filed",
+        "completionMessage": "={{ 'Work order #' + $json.work_order_id + ' created. The decision is logged with approver, time and document hash.' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "a77aa5a1-a48e-4212-989c-6658bf6008ca",
+      "name": "Rejected",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 2.3,
+      "position": [
+        1540,
+        540
+      ],
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Not filed",
+        "completionMessage": "The draft was rejected. Nothing was written to the system of record.",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "New site request": {
+      "main": [
+        [
+          {
+            "node": "Map form to API inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map form to API inputs": {
+      "main": [
+        [
+          {
+            "node": "Check site (rules + citations)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check site (rules + citations)": {
+      "main": [
+        [
+          {
+            "node": "Blocked?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blocked?": {
+      "main": [
+        [
+          {
+            "node": "Show what is missing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Draft memo with Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft memo with Claude": {
+      "main": [
+        [
+          {
+            "node": "Engineer approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Engineer approval": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "File to system of record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File to system of record": {
+      "main": [
+        [
+          {
+            "node": "Filed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

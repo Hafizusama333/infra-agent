@@ -1,0 +1,79 @@
+id: bridges_ni
+name: "Bridges – maintenance triage (Lower Saxony, real data)"
+vertical: Roads & bridges
+description: >
+  Reads a real 188-page Bundestag answer (Drucksache 19/12802) with two annex tables:
+  the federal bridge strengthening programme (Anlage 1) and condition grades + traffic for every
+  federal bridge section in Lower Saxony (Anlage 2). Reconciles both tables, flags where they
+  disagree, triages every section with cited rules, and drafts a memo for the engineer.
+sources:
+  - Drucksache_19-12802_Bruecken_Niedersachsen.pdf
+  - Drucksache_20-13579_Infrastruktur_Bayern.pdf
+conflict_tolerance_pct: 2      # area differences below this are treated as rounding, not conflicts
+
+rules:
+  - id: B1
+    severity: high
+    title: Very poor condition
+    when: "grade >= 3.5"
+    message: "Condition grade {grade} is in the worst band (3.5–4.0). Prioritise on safety grounds."
+    cite: {source: Drucksache_20-13579_Infrastruktur_Bayern.pdf, ref: p.3,
+           quote: "Die Priorisierung der Erhaltungs- und Instandsetzungsmaßnahmen erfolgt aufgrund sicherheitsrelevanter Kriterien"}
+
+  - id: B2
+    severity: medium
+    title: Poor condition
+    when: "grade >= 3.0 and grade < 3.5"
+    message: "Condition grade {grade} (band 3.0–3.4). Schedule maintenance planning."
+    cite: {source: Drucksache_20-13579_Infrastruktur_Bayern.pdf, ref: p.2,
+           quote: "Brücken mit einer Zustandsnote von 3,0 oder schlechter"}
+
+  - id: B3
+    severity: high
+    title: Poor condition under heavy truck traffic
+    when: "grade >= 3.0 and dtv_heavy >= 5000"
+    message: "Grade {grade} with {dtv_heavy} heavy vehicles/day (2015 count). Check relief measures: load or speed limits, spacing rules, no-overtaking, lane changes."
+    cite: {source: Drucksache_20-13579_Infrastruktur_Bayern.pdf, ref: p.3,
+           quote: "Last- oder Geschwindigkeitsbeschränkungen, Abstandsgebote, Überholverbote oder spezielle Verkehrsführungen"}
+
+  - id: B4
+    severity: medium
+    title: Poor condition, not in strengthening programme
+    when: "grade >= 3.0 and not in_programme"
+    message: "Grade {grade}, but this structure is not in the federal strengthening programme list (Anlage 1). Confirm it is covered by another maintenance programme."
+    cite: {source: Drucksache_19-12802_Bruecken_Niedersachsen.pdf, ref: p.2,
+           quote: "Strategie zur Ertüchtigung der Straßenbrücken im Bestand der Bundesfernstraßen"}
+
+  - id: B5
+    severity: medium
+    title: Planned date has passed
+    when: "replacement and replacement_year < current_year and stage != 'Bauwerk beseitigt'"
+    message: "Replacement was planned for {replacement_year}; planning stage was '{stage}' as of Aug 2019 (planning stage only, not construction status). Confirm whether it was built before relying on this record."
+    cite: {source: Drucksache_19-12802_Bruecken_Niedersachsen.pdf, ref: p.1,
+           quote: "Infrastruktur vom 28. August 2019 übermittelt"}
+
+  - id: B6
+    severity: info
+    title: Condition data may be outdated
+    when: "grade != None"
+    message: "This grade is from the 2019 dataset. Main inspections run every 6 years, so a newer grade should exist – pull it from the bridge database before acting."
+    cite: {source: Drucksache_20-13579_Infrastruktur_Bayern.pdf, ref: p.2,
+           quote: "Nach DIN 1076 finden alle sechs Jahre eine Hauptprüfung"}
+
+  - id: B7
+    severity: info
+    title: Ranking is advisory
+    when: "grade >= 3.0"
+    message: "The final order of works is set by Autobahn GmbH / the state road authority. This triage is input to that decision, not a replacement for it."
+    cite: {source: Drucksache_20-13579_Infrastruktur_Bayern.pdf, ref: p.2,
+           quote: "Maßnahmen der baulichen Erhaltung und deren Reihung in der Abarbeitung"}
+
+draft_prompt: |
+  You support a bridge maintenance engineer at a German road authority.
+  Write a short maintenance assessment memo (Markdown, max 350 words) for ONE bridge section,
+  using ONLY the facts, resolved conflicts and rule findings in the JSON.
+  Sections: 1. Summary  2. Condition & traffic  3. Programme status  4. Recommended next steps
+  (by priority)  5. Data caveats (age of data, conflicts that were resolved, missing values).
+  Write in English, keep German technical terms in brackets where useful (e.g. Zustandsnote).
+  'Stadium der Planung: erledigt' means the PLANNING is finished, not that construction is done.
+  For conflicts, name both values and their tables, and the value the engineer chose.
